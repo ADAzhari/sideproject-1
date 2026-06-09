@@ -6,7 +6,7 @@ https://sideproject-1-weld.vercel.app/
 
 ---
 
-<h2 id="bahasa-indonesia">🇮🇩 Bahasa Indonesia</h2>
+<h2 id="bahasa-indonesia">Bahasa Indonesia</h2>
 
 Aplikasi VTuber berbasis web yang sangat dioptimalkan, dibangun menggunakan **Next.js**, **React Three Fiber**, **MediaPipe**, dan **Kalidokit**. Aplikasi ini menangkap kamera (webcam) Anda, menjalankan pelacakan wajah secara real-time, dan menganimasikan avatar 3D VRM langsung di browser Anda.
 
@@ -42,7 +42,7 @@ Aplikasi VTuber berbasis web yang sangat dioptimalkan, dibangun menggunakan **Ne
 - **Pelacak AI**: `@mediapipe/tasks-vision`
 - **Penghitung Rotasi Tulang**: `kalidokit`
 
-<h2 id="english">🇬🇧 English</h2>
+<h2 id="english">English</h2>
 
 A highly optimized, web-based VTuber application built with **Next.js**, **React Three Fiber**, **MediaPipe**, and **Kalidokit**. This application captures your webcam feed, runs real-time facial tracking, and animates a 3D VRM avatar directly in your browser.
 

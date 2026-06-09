@@ -43,12 +43,24 @@ const AvatarModel = ({ url }) => {
       const vrm = gltf.userData.vrm;
       vrmRef.current = vrm;
       
-      // Setup VRM
+      // Setup VRM (Optimizations)
       VRMUtils.removeUnnecessaryVertices(gltf.scene);
-      VRMUtils.removeUnnecessaryJoints(gltf.scene);
+      VRMUtils.combineSkeletons(gltf.scene); // Replaced deprecated removeUnnecessaryJoints
       
       // Rotate model to face camera
       vrm.scene.rotation.y = Math.PI;
+
+      // Relax arms from T-pose to a natural resting A-pose
+      const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+      const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+
+      // 1.1 radians is roughly 63 degrees down
+      if (leftUpperArm) {
+        leftUpperArm.rotation.z = 1.1;
+      }
+      if (rightUpperArm) {
+        rightUpperArm.rotation.z = -1.1;
+      }
 
       console.log("VRM Model loaded successfully!");
     }

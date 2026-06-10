@@ -7,6 +7,7 @@ const VTuberEngine = () => {
   const videoRef = useRef(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isWorkerReady, setIsWorkerReady] = useState(false);
+  const [enableArms, setEnableArms] = useState(false);
   
   const workerRef = useRef(null);
   const requestRef = useRef(null);
@@ -27,6 +28,9 @@ const VTuberEngine = () => {
       } else if (type === 'PROCESS_DONE') {
         if (payload.riggedFace) {
           VTuberStore.riggedFace = payload.riggedFace;
+        }
+        if (payload.riggedPose) {
+          VTuberStore.riggedPose = payload.riggedPose;
         }
         isWorkerBusy.current = false;
       } else if (type === 'ERROR') {
@@ -127,6 +131,21 @@ const VTuberEngine = () => {
       >
         {isCameraActive ? 'Tracking Active' : (!isWorkerReady ? 'Memuat AI Model...' : 'START CAMERA')}
       </button>
+
+      <div style={{ marginBottom: '20px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '10px' }}>
+          <input 
+            type="checkbox" 
+            checked={enableArms}
+            onChange={(e) => {
+              setEnableArms(e.target.checked);
+              VTuberStore.enableArms = e.target.checked;
+            }}
+            style={{ width: '20px', height: '20px' }}
+          />
+          Enable Arm Tracking (Needs Both Hands Near Head to Clench) - In Development
+        </label>
+      </div>
 
       {/* Container untuk 2 Kolom (Kiri dan Kanan) */}
       <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>

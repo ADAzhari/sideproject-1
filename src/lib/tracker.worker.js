@@ -1,7 +1,8 @@
-import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import { FaceLandmarker, PoseLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import * as Kalidokit from 'kalidokit';
 
 let faceLandmarker = null;
+let poseLandmarker = null;
 
 self.onmessage = async (e) => {
   const { type, payload } = e.data;
@@ -23,7 +24,16 @@ self.onmessage = async (e) => {
         runningMode: "VIDEO", 
         numFaces: 1 
       });
-      console.log("Worker: MediaPipe Face Landmarker siap!");
+      
+      poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+          delegate: "GPU"
+        },
+        runningMode: "VIDEO",
+        numPoses: 1
+      });
+      console.log("Worker: MediaPipe Face & Pose Landmarkers siap!");
       self.postMessage({ type: 'INIT_DONE' });
     } catch (error) {
       console.error("Worker: Gagal memuat MediaPipe:", error);
@@ -38,24 +48,40 @@ self.onmessage = async (e) => {
     
     try {
       // detectForVideo accepts ImageBitmap
-      const results = faceLandmarker.detectForVideo(imageBitmap, timestamp);
+      const faceResults = faceLandmarker.detectForVideo(imageBitmap, timestamp);
+      const poseResults = poseLandmarker.detectForVideo(imageBitmap, timestamp);
       
       let riggedFace = null;
+      let riggedPose = null;
 
-      if (results.faceLandmarks && results.faceLandmarks.length > 0) {
-        const faceLandmarks = results.faceLandmarks[0];
-        
-        // Mock video object for Kalidokit
-        const mockVideo = {
-          width: videoDimensions.width,
-          height: videoDimensions.height,
-          clientWidth: videoDimensions.width,
-          clientHeight: videoDimensions.height,
-          videoWidth: videoDimensions.width,
-          videoHeight: videoDimensions.height,
-        };
+      // Mock video object for Kalidokit
+      const mockVideo = {
+        width: videoDimensions.width,
+        height: videoDimensions.height,
+        clientWidth: videoDimensions.width,
+        clientHeight: videoDimensions.height,
+        videoWidth: videoDimensions.width,
+        videoHeight: videoDimensions.height,
+      };
 
+      if (faceResults.faceLandmarks && faceResults.faceLandmarks.length > 0) {
+        const faceLandmarks = faceResults.faceLandmarks[0];
         riggedFace = Kalidokit.Face.solve(faceLandmarks, {
+          runtime: "mediapipe",
+          video: mockVideo
+        });
+      }
+      
+      if (poseResults.landmarks && poseResults.landmarks.length > 0) {
+        const poseLandmarks = poseResults.landmarks[0];
+        // Fix for MediaPipe Tasks Vision: invert Z axis to match legacy MediaPipe for Kalidokit
+        const poseWorldLandmarks = poseResults.worldLandmarks[0].map(lm => ({
+          x: lm.x,
+          y: lm.y,
+          z: -lm.z,
+          visibility: lm.visibility
+        }));
+        riggedPose = Kalidokit.Pose.solve(poseWorldLandmarks, poseLandmarks, {
           runtime: "mediapipe",
           video: mockVideo
         });
@@ -68,7 +94,7 @@ self.onmessage = async (e) => {
 
       self.postMessage({ 
         type: 'PROCESS_DONE', 
-        payload: { riggedFace } 
+        payload: { riggedFace, riggedPose } 
       });
 
     } catch (error) {

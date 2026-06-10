@@ -28,6 +28,22 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+const FINGER_BONES = [
+  'leftThumbProximal', 'leftThumbIntermediate', 'leftThumbDistal',
+  'leftIndexProximal', 'leftIndexIntermediate', 'leftIndexDistal',
+  'leftMiddleProximal', 'leftMiddleIntermediate', 'leftMiddleDistal',
+  'leftRingProximal', 'leftRingIntermediate', 'leftRingDistal',
+  'leftLittleProximal', 'leftLittleIntermediate', 'leftLittleDistal',
+  'rightThumbProximal', 'rightThumbIntermediate', 'rightThumbDistal',
+  'rightIndexProximal', 'rightIndexIntermediate', 'rightIndexDistal',
+  'rightMiddleProximal', 'rightMiddleIntermediate', 'rightMiddleDistal',
+  'rightRingProximal', 'rightRingIntermediate', 'rightRingDistal',
+  'rightLittleProximal', 'rightLittleIntermediate', 'rightLittleDistal'
+];
+
+const RELAXED_QUAT = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0));
+const GRABBING_QUAT = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 1.2));
+
 const AvatarModel = ({ url }) => {
   const vrmRef = useRef(null);
 
@@ -127,6 +143,66 @@ const AvatarModel = ({ url }) => {
         vrm.expressionManager.setValue('o', mouthO);
       }
     }
+
+    const riggedPose = VTuberStore.riggedPose;
+    const enableArms = VTuberStore.enableArms;
+
+    if (riggedPose) {
+      const applyRotation = (boneName, rotationObj) => {
+        const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+        if (!bone || !rotationObj) return;
+        const targetQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(rotationObj.x, rotationObj.y, rotationObj.z, 'XYZ'));
+        bone.quaternion.slerp(targetQuat, 0.2);
+      };
+
+      // Body tilt (Spine) is always active
+      applyRotation('spine', riggedPose.Spine);
+
+      if (enableArms) {
+        applyRotation('rightUpperArm', riggedPose.RightUpperArm);
+        applyRotation('rightLowerArm', riggedPose.RightLowerArm);
+        applyRotation('leftUpperArm', riggedPose.LeftUpperArm);
+        applyRotation('leftLowerArm', riggedPose.LeftLowerArm);
+
+        const headBone = vrm.humanoid.getNormalizedBoneNode('head');
+        const leftHandBone = vrm.humanoid.getNormalizedBoneNode('leftHand');
+        const rightHandBone = vrm.humanoid.getNormalizedBoneNode('rightHand');
+
+        if (headBone && leftHandBone && rightHandBone) {
+          const headPos = new THREE.Vector3();
+          const leftPos = new THREE.Vector3();
+          const rightPos = new THREE.Vector3();
+
+          headBone.getWorldPosition(headPos);
+          leftHandBone.getWorldPosition(leftPos);
+          rightHandBone.getWorldPosition(rightPos);
+
+          const leftDist = headPos.distanceTo(leftPos);
+          const rightDist = headPos.distanceTo(rightPos);
+
+          VTuberStore.isGrabbing = (leftDist < 0.2 && rightDist < 0.2);
+        }
+      } else {
+        const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+        const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+        
+        const aPoseLeft = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 1.1));
+        const aPoseRight = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -1.1));
+        
+        if (leftUpperArm) leftUpperArm.quaternion.slerp(aPoseLeft, 0.1);
+        if (rightUpperArm) rightUpperArm.quaternion.slerp(aPoseRight, 0.1);
+        
+        VTuberStore.isGrabbing = false;
+      }
+    }
+
+    const targetFingerQuat = VTuberStore.isGrabbing ? GRABBING_QUAT : RELAXED_QUAT;
+    FINGER_BONES.forEach(boneName => {
+      const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+      if (bone) {
+        bone.quaternion.slerp(targetFingerQuat, 0.2);
+      }
+    });
   });
 
   return <primitive object={gltf.scene} />;

@@ -2,7 +2,7 @@
 
 https://sideproject-1-weld.vercel.app/
 
-[Bahasa Indonesia](#bahasa-indonesia) [English](#english) | 
+[Bahasa Indonesia](#bahasa-indonesia) | [English](#english) 
 
 ---
 

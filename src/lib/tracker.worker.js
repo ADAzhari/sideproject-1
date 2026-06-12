@@ -1,8 +1,9 @@
-import { FaceLandmarker, PoseLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import { FaceLandmarker, PoseLandmarker, HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import * as Kalidokit from 'kalidokit';
 
 let faceLandmarker = null;
 let poseLandmarker = null;
+let handLandmarker = null;
 
 self.onmessage = async (e) => {
   const { type, payload } = e.data;
@@ -33,7 +34,16 @@ self.onmessage = async (e) => {
         runningMode: "VIDEO",
         numPoses: 1
       });
-      console.log("Worker: MediaPipe Face & Pose Landmarkers siap!");
+      
+      handLandmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+          delegate: "GPU"
+        },
+        runningMode: "VIDEO",
+        numHands: 2
+      });
+      console.log("Worker: MediaPipe Face, Pose & Hand Landmarkers siap!");
       self.postMessage({ type: 'INIT_DONE' });
     } catch (error) {
       console.error("Worker: Gagal memuat MediaPipe:", error);
@@ -42,19 +52,22 @@ self.onmessage = async (e) => {
   } 
   
   else if (type === 'PROCESS') {
-    if (!faceLandmarker) return;
+    if (!faceLandmarker || !poseLandmarker || !handLandmarker) return;
 
-    const { imageBitmap, timestamp, videoDimensions } = payload;
+    const { imageBitmap, timestamp, videoDimensions, enableFingerTracking } = payload;
     
     try {
-      // detectForVideo accepts ImageBitmap
       const faceResults = faceLandmarker.detectForVideo(imageBitmap, timestamp);
       const poseResults = poseLandmarker.detectForVideo(imageBitmap, timestamp);
+      let handResults = null;
+      if (enableFingerTracking) {
+        handResults = handLandmarker.detectForVideo(imageBitmap, timestamp);
+      }
       
       let riggedFace = null;
       let riggedPose = null;
+      let hands = null;
 
-      // Mock video object for Kalidokit
       const mockVideo = {
         width: videoDimensions.width,
         height: videoDimensions.height,
@@ -71,10 +84,9 @@ self.onmessage = async (e) => {
           video: mockVideo
         });
       }
-      
+
       if (poseResults.landmarks && poseResults.landmarks.length > 0) {
         const poseLandmarks = poseResults.landmarks[0];
-        // Fix for MediaPipe Tasks Vision: invert Z axis to match legacy MediaPipe for Kalidokit
         const poseWorldLandmarks = poseResults.worldLandmarks[0].map(lm => ({
           x: lm.x,
           y: lm.y,
@@ -87,14 +99,29 @@ self.onmessage = async (e) => {
         });
       }
       
-      // Sangat penting: Tutup ImageBitmap untuk membebaskan memori dengan cepat (garbage collection)
+      let riggedHands = { Left: null, Right: null };
+      
+      if (handResults && handResults.landmarks && handResults.landmarks.length > 0) {
+        hands = {
+          landmarks: handResults.landmarks,
+          worldLandmarks: handResults.worldLandmarks,
+          handedness: handResults.handednesses
+        };
+        
+        for (let i = 0; i < handResults.landmarks.length; i++) {
+          const landmarks = handResults.landmarks[i];
+          const handedness = handResults.handednesses[i][0].categoryName;
+          riggedHands[handedness] = Kalidokit.Hand.solve(landmarks, handedness);
+        }
+      }
+      
       if (imageBitmap && typeof imageBitmap.close === 'function') {
         imageBitmap.close();
       }
 
       self.postMessage({ 
         type: 'PROCESS_DONE', 
-        payload: { riggedFace, riggedPose } 
+        payload: { riggedFace, riggedPose, hands, riggedHands } 
       });
 
     } catch (error) {

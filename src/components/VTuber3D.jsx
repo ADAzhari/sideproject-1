@@ -145,64 +145,97 @@ const AvatarModel = ({ url }) => {
     }
 
     const riggedPose = VTuberStore.riggedPose;
-    const enableArms = VTuberStore.enableArms;
+    const riggedHands = VTuberStore.riggedHands;
+    const hands = VTuberStore.hands;
 
-    if (riggedPose) {
-      const applyRotation = (boneName, rotationObj) => {
-        const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
-        if (!bone || !rotationObj) return;
-        const targetQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(rotationObj.x, rotationObj.y, rotationObj.z, 'XYZ'));
-        bone.quaternion.slerp(targetQuat, 0.2);
-      };
-
-      // Body tilt (Spine) is always active
-      applyRotation('spine', riggedPose.Spine);
-
-      if (enableArms) {
-        applyRotation('rightUpperArm', riggedPose.RightUpperArm);
-        applyRotation('rightLowerArm', riggedPose.RightLowerArm);
-        applyRotation('leftUpperArm', riggedPose.LeftUpperArm);
-        applyRotation('leftLowerArm', riggedPose.LeftLowerArm);
-
-        const headBone = vrm.humanoid.getNormalizedBoneNode('head');
-        const leftHandBone = vrm.humanoid.getNormalizedBoneNode('leftHand');
-        const rightHandBone = vrm.humanoid.getNormalizedBoneNode('rightHand');
-
-        if (headBone && leftHandBone && rightHandBone) {
-          const headPos = new THREE.Vector3();
-          const leftPos = new THREE.Vector3();
-          const rightPos = new THREE.Vector3();
-
-          headBone.getWorldPosition(headPos);
-          leftHandBone.getWorldPosition(leftPos);
-          rightHandBone.getWorldPosition(rightPos);
-
-          const leftDist = headPos.distanceTo(leftPos);
-          const rightDist = headPos.distanceTo(rightPos);
-
-          VTuberStore.isGrabbing = (leftDist < 0.2 && rightDist < 0.2);
-        }
-      } else {
-        const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
-        const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+    // Apply Fake Spine Tilt from Head Rotation
+    if (riggedFace) {
+      const spineBone = vrm.humanoid.getNormalizedBoneNode('spine');
+      const chestBone = vrm.humanoid.getNormalizedBoneNode('chest');
+      
+      if (spineBone && chestBone) {
+        const pitch = riggedFace.head.x;
+        const yaw = riggedFace.head.y;
+        const roll = riggedFace.head.z;
         
-        const aPoseLeft = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 1.1));
-        const aPoseRight = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -1.1));
+        const spineEuler = new THREE.Euler(pitch * 0.2, yaw * 0.2, roll * 0.2, 'XYZ');
+        const chestEuler = new THREE.Euler(pitch * 0.2, yaw * 0.2, roll * 0.2, 'XYZ');
         
-        if (leftUpperArm) leftUpperArm.quaternion.slerp(aPoseLeft, 0.1);
-        if (rightUpperArm) rightUpperArm.quaternion.slerp(aPoseRight, 0.1);
-        
-        VTuberStore.isGrabbing = false;
+        spineBone.quaternion.slerp(new THREE.Quaternion().setFromEuler(spineEuler), 0.2);
+        chestBone.quaternion.slerp(new THREE.Quaternion().setFromEuler(chestEuler), 0.2);
       }
     }
 
-    const targetFingerQuat = VTuberStore.isGrabbing ? GRABBING_QUAT : RELAXED_QUAT;
-    FINGER_BONES.forEach(boneName => {
-      const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
-      if (bone) {
-        bone.quaternion.slerp(targetFingerQuat, 0.2);
-      }
-    });
+    const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+    const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+    const leftLowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
+    const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
+
+    const relaxArms = () => {
+      const aPoseLeft = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 1.1));
+      const aPoseRight = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -1.1));
+      const relaxElbow = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0));
+      
+      if (leftUpperArm) leftUpperArm.quaternion.slerp(aPoseLeft, 0.1);
+      if (rightUpperArm) rightUpperArm.quaternion.slerp(aPoseRight, 0.1);
+      if (leftLowerArm) leftLowerArm.quaternion.slerp(relaxElbow, 0.1);
+      if (rightLowerArm) rightLowerArm.quaternion.slerp(relaxElbow, 0.1);
+    };
+
+    if (riggedPose) {
+      // MODE: Full Pose (Smoothed)
+      const applyRotation = (boneName, rotationObj, slerpFactor) => {
+        const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+        if (!bone || !rotationObj) return;
+        const targetQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(rotationObj.x, rotationObj.y, rotationObj.z, 'XYZ'));
+        bone.quaternion.slerp(targetQuat, slerpFactor);
+      };
+
+      // Heavy mathematical Low-Pass Filter (0.05) to reduce glitching and snapping
+      const smoothing = 0.05;
+      applyRotation('rightUpperArm', riggedPose.RightUpperArm, smoothing);
+      applyRotation('rightLowerArm', riggedPose.RightLowerArm, smoothing);
+      applyRotation('rightHand', riggedPose.RightHand, smoothing);
+      applyRotation('leftUpperArm', riggedPose.LeftUpperArm, smoothing);
+      applyRotation('leftLowerArm', riggedPose.LeftLowerArm, smoothing);
+      applyRotation('leftHand', riggedPose.LeftHand, smoothing);
+    } else {
+      relaxArms();
+    }
+
+    // True 1:1 Finger Tracking using Kalidokit
+    if (riggedHands && (riggedHands.Left || riggedHands.Right)) {
+      FINGER_BONES.forEach(boneName => {
+        const isLeft = boneName.startsWith('left');
+        const handData = isLeft ? riggedHands.Left : riggedHands.Right;
+        
+        if (handData) {
+          // Convert VRM camelCase 'leftThumbProximal' to Kalidokit PascalCase 'LeftThumbProximal'
+          const kalidokitName = boneName.charAt(0).toUpperCase() + boneName.slice(1);
+          const rotationObj = handData[kalidokitName];
+          
+          if (rotationObj) {
+            const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+            if (bone) {
+              const targetQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(rotationObj.x, rotationObj.y, rotationObj.z, 'XYZ'));
+              bone.quaternion.slerp(targetQuat, 0.15); // Snappier smoothing for fingers
+            }
+          }
+        } else {
+          // If this specific hand is lost but the other is tracked, relax the lost hand
+          const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+          if (bone) bone.quaternion.slerp(RELAXED_QUAT, 0.1);
+        }
+      });
+    } else {
+      // Relax all fingers if tracking is completely disabled or lost
+      FINGER_BONES.forEach(boneName => {
+        const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+        if (bone) {
+          bone.quaternion.slerp(RELAXED_QUAT, 0.1);
+        }
+      });
+    }
   });
 
   return <primitive object={gltf.scene} />;

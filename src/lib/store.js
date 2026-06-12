@@ -5,7 +5,9 @@
 export const VTuberStore = {
   riggedFace: null,
   riggedPose: null,
-  enableArms: false,
+  hands: null,
+  riggedHands: null,
+  enableFingerTracking: false,
   isGrabbing: false,
   matrix: null,
   headRotation: { x: 0, y: 0, z: 0 } // Cadangan untuk rotasi kepala nanti

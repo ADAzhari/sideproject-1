@@ -7,7 +7,7 @@ const VTuberEngine = () => {
   const videoRef = useRef(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isWorkerReady, setIsWorkerReady] = useState(false);
-  const [enableArms, setEnableArms] = useState(false);
+  const [enableFingerTracking, setEnableFingerTracking] = useState(false);
   
   const workerRef = useRef(null);
   const requestRef = useRef(null);
@@ -31,6 +31,16 @@ const VTuberEngine = () => {
         }
         if (payload.riggedPose) {
           VTuberStore.riggedPose = payload.riggedPose;
+        }
+        if (payload.hands) {
+          VTuberStore.hands = payload.hands;
+        } else {
+          VTuberStore.hands = null;
+        }
+        if (payload.riggedHands) {
+          VTuberStore.riggedHands = payload.riggedHands;
+        } else {
+          VTuberStore.riggedHands = null;
         }
         isWorkerBusy.current = false;
       } else if (type === 'ERROR') {
@@ -76,7 +86,8 @@ const VTuberEngine = () => {
             videoDimensions: {
               width: video.videoWidth,
               height: video.videoHeight
-            }
+            },
+            enableFingerTracking: VTuberStore.enableFingerTracking
           }
         }, [imageBitmap]); 
         
@@ -136,14 +147,14 @@ const VTuberEngine = () => {
         <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '10px' }}>
           <input 
             type="checkbox" 
-            checked={enableArms}
+            checked={enableFingerTracking}
             onChange={(e) => {
-              setEnableArms(e.target.checked);
-              VTuberStore.enableArms = e.target.checked;
+              setEnableFingerTracking(e.target.checked);
+              VTuberStore.enableFingerTracking = e.target.checked;
             }}
             style={{ width: '20px', height: '20px' }}
           />
-          Enable Arm Tracking (Needs Both Hands Near Head to Clench) - In Development
+          Enable Finger Tracking (Requires more processing power)
         </label>
       </div>
 

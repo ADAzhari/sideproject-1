@@ -7,7 +7,11 @@ const VTuberEngine = () => {
   const videoRef = useRef(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isWorkerReady, setIsWorkerReady] = useState(false);
+  const [enableArmTracking, setEnableArmTracking] = useState(false);
   const [enableFingerTracking, setEnableFingerTracking] = useState(false);
+  const [isMirrored, setIsMirrored] = useState(true);
+  const [vrm1Mode, setVrm1Mode] = useState(false);
+  const [vrmUrl, setVrmUrl] = useState(null);
   
   const workerRef = useRef(null);
   const requestRef = useRef(null);
@@ -87,6 +91,7 @@ const VTuberEngine = () => {
               width: video.videoWidth,
               height: video.videoHeight
             },
+            enableArmTracking: VTuberStore.enableArmTracking,
             enableFingerTracking: VTuberStore.enableFingerTracking
           }
         }, [imageBitmap]); 
@@ -143,7 +148,20 @@ const VTuberEngine = () => {
         {isCameraActive ? 'Tracking Active' : (!isWorkerReady ? 'Memuat AI Model...' : 'START CAMERA')}
       </button>
 
-      <div style={{ marginBottom: '20px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ marginBottom: '20px', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '10px' }}>
+          <input 
+            type="checkbox" 
+            checked={enableArmTracking}
+            onChange={(e) => {
+              setEnableArmTracking(e.target.checked);
+              VTuberStore.enableArmTracking = e.target.checked;
+            }}
+            style={{ width: '20px', height: '20px' }}
+          />
+          Enable Arm Tracking (Membutuhkan lebih banyak CPU)
+        </label>
+
         <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '10px' }}>
           <input 
             type="checkbox" 
@@ -154,8 +172,85 @@ const VTuberEngine = () => {
             }}
             style={{ width: '20px', height: '20px' }}
           />
-          Enable Finger Tracking (Requires more processing power)
+          Enable Finger Tracking (Membutuhkan paling banyak CPU)
         </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '10px' }}>
+          <input 
+            type="checkbox" 
+            checked={isMirrored}
+            onChange={(e) => setIsMirrored(e.target.checked)}
+            style={{ width: '20px', height: '20px' }}
+          />
+          Mirror Tracking (Seperti melihat cermin)
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '10px' }}>
+          <input 
+            type="checkbox" 
+            checked={vrm1Mode}
+            onChange={(e) => {
+              setVrm1Mode(e.target.checked);
+              VTuberStore.vrm1Mode = e.target.checked;
+            }}
+            style={{ width: '20px', height: '20px' }}
+          />
+          Fix VRM 1.0 Tracking Inversion (Gunakan jika kepala/lengan bergerak terbalik)
+        </label>
+      </div>
+
+      {/* Model Selection UI */}
+      <div style={{ marginBottom: '30px', padding: '15px', backgroundColor: '#1a1a1a', borderRadius: '8px', border: '1px solid #444', textAlign: 'center' }}>
+        <h3 style={{ color: '#00ff88', marginBottom: '15px' }}>Pilih Model Avatar (Wajib)</h3>
+        <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
+          
+          {/* Use Default Button */}
+          <button 
+            onClick={() => setVrmUrl('/models/avatar.vrm')}
+            style={{ 
+              padding: '10px 20px', 
+              backgroundColor: vrmUrl === '/models/avatar.vrm' ? '#00cc6a' : '#333', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Gunakan Model Default
+          </button>
+
+          {/* Upload Custom File */}
+          <div style={{ position: 'relative' }}>
+            <input 
+              type="file" 
+              accept=".vrm"
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  // Create local blob URL for the uploaded file
+                  const url = URL.createObjectURL(file);
+                  setVrmUrl(url);
+                }
+              }}
+              style={{ display: 'none' }}
+              id="vrm-upload"
+            />
+            <label 
+              htmlFor="vrm-upload"
+              style={{ 
+                display: 'inline-block',
+                padding: '10px 20px', 
+                backgroundColor: vrmUrl && vrmUrl !== '/models/avatar.vrm' ? '#00cc6a' : '#333', 
+                color: 'white', 
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Upload Model Sendiri (.vrm)
+            </label>
+          </div>
+        </div>
+        {!vrmUrl && <p style={{ color: '#ff4444', marginTop: '10px', fontSize: '14px' }}>Belum ada model yang dipilih. Avatar tidak akan muncul.</p>}
       </div>
 
       {/* Container untuk 2 Kolom (Kiri dan Kanan) */}
@@ -172,7 +267,7 @@ const VTuberEngine = () => {
               width: '640px', 
               height: '480px', 
               backgroundColor: '#111',
-              transform: 'scaleX(-1)', // Mirror
+              transform: isMirrored ? 'scaleX(-1)' : 'none',
               borderRadius: '8px',
               border: '2px solid #333'
             }} 
@@ -183,7 +278,7 @@ const VTuberEngine = () => {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <h3 style={{ marginBottom: '10px', color: '#00ff88' }}>Avatar 3D (React Three Fiber)</h3>
           {/* Render Komponen 3D kita */}
-          <VTuber3D />
+          <VTuber3D isMirrored={isMirrored} vrmUrl={vrmUrl} />
         </div>
 
       </div>

@@ -54,11 +54,16 @@ self.onmessage = async (e) => {
   else if (type === 'PROCESS') {
     if (!faceLandmarker || !poseLandmarker || !handLandmarker) return;
 
-    const { imageBitmap, timestamp, videoDimensions, enableFingerTracking } = payload;
+    const { imageBitmap, timestamp, videoDimensions, enableFingerTracking, enableArmTracking } = payload;
     
     try {
       const faceResults = faceLandmarker.detectForVideo(imageBitmap, timestamp);
-      const poseResults = poseLandmarker.detectForVideo(imageBitmap, timestamp);
+      
+      let poseResults = null;
+      if (enableArmTracking) {
+        poseResults = poseLandmarker.detectForVideo(imageBitmap, timestamp);
+      }
+      
       let handResults = null;
       if (enableFingerTracking) {
         handResults = handLandmarker.detectForVideo(imageBitmap, timestamp);
@@ -85,7 +90,7 @@ self.onmessage = async (e) => {
         });
       }
 
-      if (poseResults.landmarks && poseResults.landmarks.length > 0) {
+      if (poseResults && poseResults.landmarks && poseResults.landmarks.length > 0) {
         const poseLandmarks = poseResults.landmarks[0];
         const poseWorldLandmarks = poseResults.worldLandmarks[0].map(lm => ({
           x: lm.x,

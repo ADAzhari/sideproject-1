@@ -99,7 +99,12 @@ const AvatarModel = ({ url }) => {
       
       if (headBone) {
         // Kalidokit sometimes uses different coordinate systems, standard is X, Y, Z
-        const { x, y, z } = riggedFace.head;
+        let { x, y, z } = riggedFace.head;
+        if (VTuberStore.vrm1Mode) {
+          x *= -1;
+          y *= -1;
+          z *= -1;
+        }
         const targetRotation = new THREE.Euler(x, y, z, 'XYZ');
         const targetQuaternion = new THREE.Quaternion().setFromEuler(targetRotation);
         
@@ -154,9 +159,15 @@ const AvatarModel = ({ url }) => {
       const chestBone = vrm.humanoid.getNormalizedBoneNode('chest');
       
       if (spineBone && chestBone) {
-        const pitch = riggedFace.head.x;
-        const yaw = riggedFace.head.y;
-        const roll = riggedFace.head.z;
+        let pitch = riggedFace.head.x;
+        let yaw = riggedFace.head.y;
+        let roll = riggedFace.head.z;
+        
+        if (VTuberStore.vrm1Mode) {
+          pitch *= -1;
+          yaw *= -1;
+          roll *= -1;
+        }
         
         const spineEuler = new THREE.Euler(pitch * 0.2, yaw * 0.2, roll * 0.2, 'XYZ');
         const chestEuler = new THREE.Euler(pitch * 0.2, yaw * 0.2, roll * 0.2, 'XYZ');
@@ -187,7 +198,18 @@ const AvatarModel = ({ url }) => {
       const applyRotation = (boneName, rotationObj, slerpFactor) => {
         const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
         if (!bone || !rotationObj) return;
-        const targetQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(rotationObj.x, rotationObj.y, rotationObj.z, 'XYZ'));
+
+        let { x, y, z } = rotationObj;
+        
+        // Invert X, Y, and Z axes if the VTuberStore vrm1Mode flag is enabled
+        // This fixes VRM 1.0 models having inverted tracking compared to VRM 0.0
+        if (VTuberStore.vrm1Mode) {
+           x *= -1;
+           y *= -1;
+           z *= -1;
+        }
+
+        const targetQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z, 'XYZ'));
         bone.quaternion.slerp(targetQuat, slerpFactor);
       };
 
@@ -195,10 +217,19 @@ const AvatarModel = ({ url }) => {
       const smoothing = 0.05;
       applyRotation('rightUpperArm', riggedPose.RightUpperArm, smoothing);
       applyRotation('rightLowerArm', riggedPose.RightLowerArm, smoothing);
-      applyRotation('rightHand', riggedPose.RightHand, smoothing);
+      
       applyRotation('leftUpperArm', riggedPose.LeftUpperArm, smoothing);
       applyRotation('leftLowerArm', riggedPose.LeftLowerArm, smoothing);
-      applyRotation('leftHand', riggedPose.LeftHand, smoothing);
+      
+      // WRIST FUSION FIX:
+      // By NOT applying riggedPose.RightHand/LeftHand, the wrist bone simply inherits
+      // the rotation of the forearm. This keeps the wrist perfectly straight and prevents 
+      // the horrific backward-bending contortion when the AI guesses the wrist angle wrong.
+      const rightHand = vrm.humanoid.getNormalizedBoneNode('rightHand');
+      const leftHand = vrm.humanoid.getNormalizedBoneNode('leftHand');
+      if (rightHand) rightHand.quaternion.slerp(RELAXED_QUAT, 0.1);
+      if (leftHand) leftHand.quaternion.slerp(RELAXED_QUAT, 0.1);
+      
     } else {
       relaxArms();
     }
@@ -217,7 +248,13 @@ const AvatarModel = ({ url }) => {
           if (rotationObj) {
             const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
             if (bone) {
-              const targetQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(rotationObj.x, rotationObj.y, rotationObj.z, 'XYZ'));
+              let { x, y, z } = rotationObj;
+              if (VTuberStore.vrm1Mode) {
+                x *= -1;
+                y *= -1;
+                z *= -1;
+              }
+              const targetQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z, 'XYZ'));
               bone.quaternion.slerp(targetQuat, 0.15); // Snappier smoothing for fingers
             }
           }
@@ -241,7 +278,7 @@ const AvatarModel = ({ url }) => {
   return <primitive object={gltf.scene} />;
 };
 
-const VTuber3D = () => {
+const VTuber3D = ({ isMirrored = true, vrmUrl }) => {
   return (
     <div style={{ position: 'relative' }}>
       <Canvas
@@ -252,7 +289,8 @@ const VTuber3D = () => {
           height: '480px',
           backgroundColor: '#222',
           borderRadius: '8px',
-          border: '2px solid #00ff88'
+          border: '2px solid #00ff88',
+          transform: isMirrored ? 'scaleX(-1)' : 'none'
         }}
       >
         <ambientLight intensity={1.0} />
@@ -265,7 +303,14 @@ const VTuber3D = () => {
           </mesh>
         }>
           <ErrorBoundary>
-            <AvatarModel url="/models/avatar.vrm" />
+            {vrmUrl ? (
+              <AvatarModel key={vrmUrl} url={vrmUrl} />
+            ) : (
+              <mesh position={[0, 1.3, 0]}>
+                <boxGeometry args={[0.3, 0.3, 0.3]} />
+                <meshBasicMaterial color="#555" wireframe />
+              </mesh>
+            )}
           </ErrorBoundary>
         </React.Suspense>
         

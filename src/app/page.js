@@ -10,7 +10,7 @@ const VTuberEngine = dynamic(() => import('@/components/VTuberEngine'), {
 export default function Home() {
   return (
     <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4">
-      <h1 className="text-3xl font-bold mb-2 text-emerald-400">Side Project #1 by Azu ^_^ </h1>
+      <h1 className="text-3xl font-bold mb-2 text-emerald-400">Side Project #1 by Azu </h1>
       <a
         href="https://forms.gle/fDiVdCZt3vN8nqBX7"
         target="_blank"

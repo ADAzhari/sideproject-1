@@ -296,6 +296,7 @@ const AvatarModel = ({ url }) => {
 
       // Heavy mathematical Low-Pass Filter (0.05) to reduce glitching and snapping
       const smoothing = 0.05;
+
       applyRotation('rightUpperArm', riggedPose.RightUpperArm, smoothing);
       // We apply 100% of the calculated twist to the lower arm
       applyRotation('rightLowerArm', riggedPose.RightLowerArm, smoothing, rightRollX);

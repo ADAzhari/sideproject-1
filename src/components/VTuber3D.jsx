@@ -46,6 +46,7 @@ const GRABBING_QUAT = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 
 
 const AvatarModel = ({ url }) => {
   const vrmRef = useRef(null);
+  const rollStateRef = useRef({ right: 0, left: 0 });
 
   // Load VRM model with VRMLoaderPlugin
   const gltf = useLoader(GLTFLoader, url, (loader) => {
@@ -195,7 +196,7 @@ const AvatarModel = ({ url }) => {
 
     if (riggedPose) {
       // MODE: Full Pose (Smoothed)
-      const applyRotation = (boneName, rotationObj, slerpFactor) => {
+      const applyRotation = (boneName, rotationObj, slerpFactor, twistX = 0) => {
         const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
         if (!bone || !rotationObj) return;
 
@@ -210,25 +211,105 @@ const AvatarModel = ({ url }) => {
         }
 
         const targetQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z, 'XYZ'));
+        
+        // Apply local twist to the forearm without breaking elbow bend
+        if (twistX !== 0) {
+           targetQuat.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(twistX, 0, 0)));
+        }
+
         bone.quaternion.slerp(targetQuat, slerpFactor);
       };
+
+      // SNAP-BASED ROLL (Thumb-to-Pinky X position logic)
+      let targetRightRollX = null;
+      let targetLeftRollX = null;
+
+      if (hands && hands.landmarks && hands.handedness) {
+        hands.handedness.forEach((hand, index) => {
+          // MediaPipe's Left/Right is often inverted for front-facing cameras
+          const isRight = hand[0].categoryName === "Left"; 
+          const landmarks = hands.landmarks[index];
+          
+          if (landmarks && landmarks.length > 17) {
+            const thumbTip = landmarks[4];
+            const pinkyMcp = landmarks[17];
+            
+            // X goes from 0 (left) to 1 (right)
+            const diffX = thumbTip.x - pinkyMcp.x;
+            const threshold = 0.02; // Snap threshold
+            
+            let rollX = 0;
+
+            if (isRight) {
+              if (diffX < -threshold) {
+                // Back of hand
+                rollX = 0;
+              } else if (diffX > threshold) {
+                // Palm facing camera
+                rollX = Math.PI; 
+              } else {
+                // Side
+                rollX = Math.PI / 2;
+              }
+              if (VTuberStore.vrm1Mode) rollX *= -1;
+              targetRightRollX = rollX;
+            } else {
+              // Left hand logic
+              if (diffX > threshold) {
+                // Back of hand
+                rollX = 0;
+              } else if (diffX < -threshold) {
+                // Palm facing camera
+                rollX = Math.PI;
+              } else {
+                // Side
+                rollX = Math.PI / 2;
+              }
+              if (VTuberStore.vrm1Mode) rollX *= -1;
+              targetLeftRollX = rollX;
+            }
+          }
+        });
+      }
+
+      // Stateful smoothing (Low-Pass Filter on the scalar value)
+      // This forces the rotation to follow a locked path and prevents slerp from randomly reversing direction
+      let rightRollX = 0;
+      let leftRollX = 0;
+
+      if (targetRightRollX !== null) {
+         rollStateRef.current.right += (targetRightRollX - rollStateRef.current.right) * 0.15;
+         rightRollX = rollStateRef.current.right;
+      } else {
+         // Smoothly return to relaxed pose if tracking is lost
+         rollStateRef.current.right += (0 - rollStateRef.current.right) * 0.1;
+         rightRollX = rollStateRef.current.right;
+      }
+
+      if (targetLeftRollX !== null) {
+         rollStateRef.current.left += (targetLeftRollX - rollStateRef.current.left) * 0.15;
+         leftRollX = rollStateRef.current.left;
+      } else {
+         rollStateRef.current.left += (0 - rollStateRef.current.left) * 0.1;
+         leftRollX = rollStateRef.current.left;
+      }
 
       // Heavy mathematical Low-Pass Filter (0.05) to reduce glitching and snapping
       const smoothing = 0.05;
       applyRotation('rightUpperArm', riggedPose.RightUpperArm, smoothing);
-      applyRotation('rightLowerArm', riggedPose.RightLowerArm, smoothing);
+      // We apply 100% of the calculated twist to the lower arm
+      applyRotation('rightLowerArm', riggedPose.RightLowerArm, smoothing, rightRollX);
       
       applyRotation('leftUpperArm', riggedPose.LeftUpperArm, smoothing);
-      applyRotation('leftLowerArm', riggedPose.LeftLowerArm, smoothing);
+      applyRotation('leftLowerArm', riggedPose.LeftLowerArm, smoothing, leftRollX);
       
-      // WRIST FUSION FIX:
-      // By NOT applying riggedPose.RightHand/LeftHand, the wrist bone simply inherits
-      // the rotation of the forearm. This keeps the wrist perfectly straight and prevents 
-      // the horrific backward-bending contortion when the AI guesses the wrist angle wrong.
-      const rightHand = vrm.humanoid.getNormalizedBoneNode('rightHand');
-      const leftHand = vrm.humanoid.getNormalizedBoneNode('leftHand');
-      if (rightHand) rightHand.quaternion.slerp(RELAXED_QUAT, 0.1);
-      if (leftHand) leftHand.quaternion.slerp(RELAXED_QUAT, 0.1);
+      // Because we moved 100% of the twist to the lower arm (which is anatomically correct),
+      // we can safely relax the wrist bone completely.
+      const rightHandBone = vrm.humanoid.getNormalizedBoneNode('rightHand');
+      const leftHandBone = vrm.humanoid.getNormalizedBoneNode('leftHand');
+      
+      if (rightHandBone) rightHandBone.quaternion.slerp(RELAXED_QUAT, 0.1);
+      if (leftHandBone) leftHandBone.quaternion.slerp(RELAXED_QUAT, 0.1);
       
     } else {
       relaxArms();
@@ -290,7 +371,7 @@ const VTuber3D = ({ isMirrored = true, vrmUrl }) => {
           backgroundColor: '#222',
           borderRadius: '8px',
           border: '2px solid #00ff88',
-          transform: isMirrored ? 'scaleX(-1)' : 'none'
+          transform: isMirrored ? 'none' : 'scaleX(-1)'
         }}
       >
         <ambientLight intensity={1.0} />

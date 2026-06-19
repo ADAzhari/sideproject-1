@@ -10,6 +10,7 @@ const VTuberEngine = () => {
   const [enableArmTracking, setEnableArmTracking] = useState(false);
   const [enableFingerTracking, setEnableFingerTracking] = useState(false);
   const [isMirrored, setIsMirrored] = useState(true);
+  const [showCamera, setShowCamera] = useState(false);
   const [vrm1Mode, setVrm1Mode] = useState(false);
   const [vrmUrl, setVrmUrl] = useState(null);
 
@@ -188,6 +189,17 @@ const VTuberEngine = () => {
         <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '10px' }}>
           <input
             type="checkbox"
+            checked={showCamera}
+            onChange={(e) => setShowCamera(e.target.checked)}
+            style={{ width: '20px', height: '20px' }}
+          />
+          Tampilkan Kamera (Debug)
+        </label>
+
+        {/* 
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '10px' }}>
+          <input
+            type="checkbox"
             checked={vrm1Mode}
             onChange={(e) => {
               setVrm1Mode(e.target.checked);
@@ -197,6 +209,7 @@ const VTuberEngine = () => {
           />
           Fix VRM 1.0 Tracking Inversion (Gunakan jika kepala/lengan bergerak terbalik)
         </label>
+        */}
       </div>
 
       {/* Model Selection UI */}
@@ -224,6 +237,7 @@ const VTuberEngine = () => {
             <input
               type="file"
               accept=".vrm"
+              onClick={(e) => { e.target.value = null; }}
               onChange={(e) => {
                 const file = e.target.files[0];
                 if (file) {
@@ -257,7 +271,7 @@ const VTuberEngine = () => {
       <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
 
         {/* Kolom Kiri: Video Feed */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ display: showCamera ? 'flex' : 'none', flexDirection: 'column', alignItems: 'center' }}>
           <h3 style={{ marginBottom: '10px', color: '#ccc' }}>Kamera Asli</h3>
           <video
             ref={videoRef}

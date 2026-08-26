@@ -1,7 +1,8 @@
 "use client";
 import React, { useEffect, useRef, useState } from 'react';
-import { VTuberStore } from '../lib/store';
+import { VTuberStore, broadcastStoreUpdate } from '../lib/store';
 import VTuber3D from './VTuber3D';
+import FloatingAvatarWindow from './FloatingAvatarWindow';
 
 const VTuberEngine = () => {
   const videoRef = useRef(null);
@@ -13,11 +14,23 @@ const VTuberEngine = () => {
   const [showCamera, setShowCamera] = useState(false);
   const [vrm1Mode, setVrm1Mode] = useState(false);
   const [vrmUrl, setVrmUrl] = useState(null);
+  const [showFloatingWindow, setShowFloatingWindow] = useState(false);
+
+  // Auto-Idle Sleep / Pause States & Refs
+  const [isIdlePaused, setIsIdlePaused] = useState(false);
+  const [enableAutoIdle, setEnableAutoIdle] = useState(true);
+  const isIdlePausedRef = useRef(false);
+  const lastActivityTimeRef = useRef(Date.now());
+  const lastFaceDetectedTimeRef = useRef(Date.now());
 
   const workerRef = useRef(null);
   const requestRef = useRef(null);
   const lastVideoTimeRef = useRef(-1);
   const isWorkerBusy = useRef(false);
+
+  useEffect(() => {
+    isIdlePausedRef.current = isIdlePaused;
+  }, [isIdlePaused]);
 
   useEffect(() => {
     console.log("Inisialisasi Web Worker...");
@@ -33,9 +46,15 @@ const VTuberEngine = () => {
       } else if (type === 'PROCESS_DONE') {
         if (payload.riggedFace) {
           VTuberStore.riggedFace = payload.riggedFace;
+          lastFaceDetectedTimeRef.current = Date.now();
+        } else {
+          VTuberStore.riggedFace = null;
         }
+
         if (payload.riggedPose) {
           VTuberStore.riggedPose = payload.riggedPose;
+        } else {
+          VTuberStore.riggedPose = null;
         }
         if (payload.hands) {
           VTuberStore.hands = payload.hands;
@@ -47,6 +66,7 @@ const VTuberEngine = () => {
         } else {
           VTuberStore.riggedHands = null;
         }
+        broadcastStoreUpdate();
         isWorkerBusy.current = false;
       } else if (type === 'ERROR') {
         console.error("Web Worker Error:", payload);
@@ -65,7 +85,57 @@ const VTuberEngine = () => {
     };
   }, []);
 
+  // Idle Activity Event Listeners (Wake-on-Input)
+  useEffect(() => {
+    if (!isCameraActive || !enableAutoIdle) return;
+
+    const resumeTracking = () => {
+      lastActivityTimeRef.current = Date.now();
+      if (isIdlePausedRef.current) {
+        console.log("Wake-on-Input: Melanjutkan tracking!");
+        setIsIdlePaused(false);
+        isIdlePausedRef.current = false;
+        requestRef.current = requestAnimationFrame(predictWebcam);
+      }
+    };
+
+    const handleUserActivity = () => {
+      resumeTracking();
+    };
+
+    window.addEventListener('mousemove', handleUserActivity);
+    window.addEventListener('keydown', handleUserActivity);
+    window.addEventListener('touchstart', handleUserActivity);
+
+    // Periodically check if idle (> 15s without face & input, or > 30s without input)
+    const idleCheckInterval = setInterval(() => {
+      const timeSinceActivity = Date.now() - lastActivityTimeRef.current;
+      const timeSinceFace = Date.now() - lastFaceDetectedTimeRef.current;
+
+      if (
+        !isIdlePausedRef.current &&
+        ((timeSinceActivity > 15000 && timeSinceFace > 15000) || timeSinceActivity > 30000)
+      ) {
+        console.log("Idle Mode: Tracking diistirahatkan untuk menghemat CPU & GPU.");
+        setIsIdlePaused(true);
+        isIdlePausedRef.current = true;
+      }
+    }, 2000);
+
+    return () => {
+      window.removeEventListener('mousemove', handleUserActivity);
+      window.removeEventListener('keydown', handleUserActivity);
+      window.removeEventListener('touchstart', handleUserActivity);
+      clearInterval(idleCheckInterval);
+    };
+  }, [isCameraActive, enableAutoIdle]);
+
   const predictWebcam = async () => {
+    if (isIdlePausedRef.current) {
+      // Pause loop completely to save CPU/GPU when idle
+      return;
+    }
+
     const video = videoRef.current;
     if (!video || !isWorkerReady) return;
 
@@ -132,22 +202,38 @@ const VTuberEngine = () => {
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', width: '100%' }}>
 
-      <button
-        onClick={handleStart}
-        disabled={isCameraActive || !isWorkerReady}
-        style={{
-          padding: '10px 20px',
-          fontSize: '16px',
-          marginBottom: '20px',
-          cursor: (isCameraActive || !isWorkerReady) ? 'not-allowed' : 'pointer',
-          backgroundColor: isCameraActive ? '#333' : (!isWorkerReady ? '#888' : '#4CAF50'),
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px'
-        }}
-      >
-        {isCameraActive ? 'Tracking Active' : (!isWorkerReady ? 'Memuat AI Model...' : 'START CAMERA')}
-      </button>
+      <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '20px' }}>
+        <button
+          onClick={handleStart}
+          disabled={isCameraActive || !isWorkerReady}
+          style={{
+            padding: '10px 20px',
+            fontSize: '16px',
+            cursor: (isCameraActive || !isWorkerReady) ? 'not-allowed' : 'pointer',
+            backgroundColor: isCameraActive ? '#333' : (!isWorkerReady ? '#888' : '#4CAF50'),
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px'
+          }}
+        >
+          {isCameraActive ? 'Tracking Active' : (!isWorkerReady ? 'Memuat AI Model...' : 'START CAMERA')}
+        </button>
+
+        <button
+          onClick={() => setShowFloatingWindow(!showFloatingWindow)}
+          style={{
+            padding: '10px 20px',
+            fontSize: '16px',
+            cursor: 'pointer',
+            backgroundColor: showFloatingWindow ? '#006644' : '#111827',
+            color: '#00ff88',
+            border: '1px solid #00ff88',
+            borderRadius: '4px'
+          }}
+        >
+          🎭 {showFloatingWindow ? 'Sembunyikan Floating Window' : '✨ Buka Floating Avatar Window'}
+        </button>
+      </div>
 
       <div style={{ marginBottom: '20px', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
         <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '10px' }}>
@@ -189,28 +275,71 @@ const VTuberEngine = () => {
         <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '10px' }}>
           <input
             type="checkbox"
+            checked={enableAutoIdle}
+            onChange={(e) => setEnableAutoIdle(e.target.checked)}
+            style={{ width: '20px', height: '20px' }}
+          />
+          <span style={{ color: '#00ff88', fontWeight: 'bold' }}>
+            ⚡ Auto-Pause saat Idle / Tidak Ada Pengguna (Hemat CPU & GPU)
+          </span>
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '10px' }}>
+          <input
+            type="checkbox"
             checked={showCamera}
             onChange={(e) => setShowCamera(e.target.checked)}
             style={{ width: '20px', height: '20px' }}
           />
           Tampilkan Kamera (Debug)
         </label>
-
-        {/* 
-        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '10px' }}>
-          <input
-            type="checkbox"
-            checked={vrm1Mode}
-            onChange={(e) => {
-              setVrm1Mode(e.target.checked);
-              VTuberStore.vrm1Mode = e.target.checked;
-            }}
-            style={{ width: '20px', height: '20px' }}
-          />
-          Fix VRM 1.0 Tracking Inversion (Gunakan jika kepala/lengan bergerak terbalik)
-        </label>
-        */}
       </div>
+
+      {/* Idle Mode Banner Overlay */}
+      {isIdlePaused && (
+        <div style={{
+          marginBottom: '20px',
+          padding: '16px 20px',
+          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+          border: '1px solid #10b981',
+          borderRadius: '8px',
+          color: '#34d399',
+          display: 'flex',
+          alignItems: 'center',
+          justify: 'space-between',
+          gap: '15px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '20px' }}>🌙</span>
+            <div>
+              <strong style={{ display: 'block', fontSize: '14px' }}>Idle Mode Aktif (Tracking Paused)</strong>
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>
+                Tracking diistirahatkan untuk menghemat penggunaan CPU & GPU. Tekan tombol keyboard atau gerakkan mouse untuk membangunkan.
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setIsIdlePaused(false);
+              isIdlePausedRef.current = false;
+              requestRef.current = requestAnimationFrame(predictWebcam);
+            }}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#10b981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontWeight: 'bold',
+              fontSize: '12px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            ⚡ Bangunkan (Resume)
+          </button>
+        </div>
+      )}
 
       {/* Model Selection UI */}
       <div style={{ marginBottom: '30px', padding: '15px', backgroundColor: '#1a1a1a', borderRadius: '8px', border: '1px solid #444', textAlign: 'center' }}>
@@ -297,6 +426,11 @@ const VTuberEngine = () => {
 
       </div>
 
+      <FloatingAvatarWindow
+        isOpen={showFloatingWindow}
+        onClose={() => setShowFloatingWindow(false)}
+        defaultVrmUrl={vrmUrl || '/models/avatar.vrm'}
+      />
     </div>
   );
 };

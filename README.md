@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Side Project 1
 
-## Getting Started
+https://sideproject-1-weld.vercel.app/
 
-First, run the development server:
+[Bahasa Indonesia](#bahasa-indonesia) | [English](#english) 
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+<h2 id="bahasa-indonesia">Bahasa Indonesia</h2>
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+Aplikasi VTuber berbasis web yang sangat dioptimalkan, dibangun menggunakan **Next.js**, **React Three Fiber**, **MediaPipe**, dan **Kalidokit**. Aplikasi ini menangkap kamera (webcam) Anda, menjalankan pelacakan wajah secara real-time, dan menganimasikan avatar 3D VRM langsung di browser Anda.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Fitur
+- **Pelacakan Wajah Real-Time**: Menggunakan MediaPipe dari Google untuk mendeteksi titik wajah (landmarks) dengan sangat akurat.
+- **Render Avatar 3D**: Memuat dan menampilkan model standar `.vrm` menggunakan React Three Fiber.
+- **Ramah HP/PC Kentang**: Komputasi AI dan matematika yang berat dipindahkan sepenuhnya ke **Web Worker**. Ini memastikan render 3D tetap berjalan mulus di 60 FPS tanpa membuat aplikasi ngelag.
+- **Akselerasi GPU**: Menggunakan model AI `float16` dan hardware acceleration (WebGPU/WebGL) untuk performa maksimal.
 
-## Learn More
+### Cara Memulai
 
-To learn more about Next.js, take a look at the following resources:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Buka https://sideproject-1-weld.vercel.app/
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+#### ATAU 
 
-## Deploy on Vercel
+1. **Instal dependensi:**
+   ```bash
+   npm install
+   ```
+2. **Siapkan model VRM Anda:**
+   Masukkan model avatar `.vrm` Anda ke dalam folder `public/models/` dan ubah namanya menjadi `avatar.vrm` (atau ubah path-nya di `VTuber3D.jsx`).
+3. **Jalankan server pengembangan:**
+   ```bash
+   npm run dev
+   ```
+4. **Buka aplikasi:**
+   Buka [http://localhost:3000](http://localhost:3000) di browser Anda dan berikan izin akses kamera untuk memulai!
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Teknologi yang Digunakan
+- **Framework Frontend**: Next.js (App Router)
+- **Render 3D**: React Three Fiber, Three.js, `@pixiv/three-vrm`
+- **Pelacak AI**: `@mediapipe/tasks-vision`
+- **Penghitung Rotasi Tulang**: `kalidokit`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+<h2 id="english">English</h2>
+
+A highly optimized, web-based VTuber application built with **Next.js**, **React Three Fiber**, **MediaPipe**, and **Kalidokit**. This application captures your webcam feed, runs real-time facial tracking, and animates a 3D VRM avatar directly in your browser.
+
+### Features
+- **Real-Time Facial Tracking**: Utilizes Google's MediaPipe for highly accurate facial landmarks.
+- **3D Avatar Rendering**: Loads and renders standard `.vrm` models using React Three Fiber.
+- **Low-End Device Friendly**: Heavy AI and mathematical computations are offloaded to a **Web Worker**, ensuring the 3D rendering stays at a smooth 60 FPS without stuttering the main UI thread.
+- **GPU Accelerated**: Uses `float16` AI models and WebGPU/WebGL delegation for maximum performance.
+
+### Getting Started
+1. Open https://sideproject-1-weld.vercel.app/
+
+#### OR
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+2. **Place your VRM model:**
+   Drop your `.vrm` avatar model into the `public/models/` directory and rename it to `avatar.vrm` (or update the path in `VTuber3D.jsx`).
+3. **Run the development server:**
+   ```bash
+   npm run dev
+   ```
+4. **Open the app:**
+   Navigate to [http://localhost:3000](http://localhost:3000) and grant camera permissions to start tracking!
+
+### Tech Stack
+- **Frontend Framework**: Next.js (App Router)
+- **3D Rendering**: React Three Fiber, Three.js, `@pixiv/three-vrm`
+- **AI Tracking**: `@mediapipe/tasks-vision`
+- **Kinematic Solver**: `kalidokit`
+
+---
